@@ -74,7 +74,7 @@
       let why;
       if (r.fits) why = 'margin ' + r.minMargin + ' cm';
       else if (!r.fitsSize && !r.fitsWeight) why = 'too big and ' + r.overKg + ' kg over';
-      else if (!r.fitsSize) why = 'too big (' + Math.min.apply(null, r.margins) + ' cm over)';
+      else if (!r.fitsSize) why = 'too big (' + Math.abs(Math.min.apply(null, r.margins)) + ' cm over)';
       else why = r.overKg + ' kg over';
       return '<tr><td>' + esc(r.name) + '<div class="dim">' + limit + '</div></td>'
         + '<td><span class="chip ' + (r.fits ? 'pass' : 'fail') + '">' + (r.fits ? 'FITS' : 'NO') + '</span></td>'
