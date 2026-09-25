@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CarryOn - will your bag fly?</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:#0e1319; color:#e9eef2; min-height:100vh; }
+  .wrap { max-width:860px; margin:0 auto; padding:28px 20px 80px; }
+  header { display:flex; justify-content:space-between; align-items:center; margin-bottom:22px; }
+  header h1 { font-size:22px; } header h1 span { color:#f2b25c; }
+  header a { color:#8798a5; text-decoration:none; font-size:14px; }
+  .card { background:#151c24; border:1px solid #2c3644; border-radius:12px; padding:18px; margin-bottom:18px; }
+  label { font-size:12px; color:#8798a5; display:block; margin-bottom:4px; }
+  input { background:#0e1319; border:1px solid #3a4a58; border-radius:8px; color:#e9eef2; padding:9px 10px; font-size:14px; width:100%; }
+  button { background:#f2b25c; border:none; color:#241505; font-weight:700; padding:11px 22px; border-radius:9px; font-size:14px; cursor:pointer; }
+  .row5 { display:grid; grid-template-columns:1fr 1fr 1fr 1fr auto; gap:12px; align-items:end; }
+  .verdict { background:#1d1a12; border:1px solid #4a3d20; border-radius:10px; padding:14px 16px; margin-bottom:14px; font-size:15px; line-height:1.6; }
+  .verdict b { color:#f2b25c; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th { text-align:left; color:#8798a5; font-size:12px; font-weight:600; padding:6px 8px; border-bottom:1px solid #2c3644; }
+  td { padding:8px; border-bottom:1px solid #1d2530; color:#c8d4dc; }
+  .chip { display:inline-block; padding:2px 10px; border-radius:999px; font-size:12px; font-weight:700; }
+  .pass { background:#12341f; color:#7ed99a; }
+  .fail { background:#3d1a1a; color:#ff9a9a; }
+  .dim { color:#8798a5; font-size:12px; }
+  .err { color:#ff8a8a; font-size:13px; margin-top:8px; }
+  .note { color:#5c6c78; font-size:12px; margin-top:10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>Carry<span>On</span></h1><a href="index.html">home</a></header>
+
+  <div class="card">
+    <div class="row5">
+      <div><label>Longest side (cm)</label><input id="l" type="number" step="0.5" value="55"></div>
+      <div><label>Middle side (cm)</label><input id="w" type="number" step="0.5" value="40"></div>
+      <div><label>Shortest side (cm)</label><input id="h" type="number" step="0.5" value="20"></div>
+      <div><label>Weight (kg, optional)</label><input id="kg" type="number" step="0.1" value="9"></div>
+      <div><button id="go">Check</button></div>
+    </div>
+    <div class="err" id="err"></div>
+    <div class="note">Published cabin-bag limits as of writing; airlines change rules and fare classes differ - verify before you fly.</div>
+  </div>
+
+  <div id="out"></div>
+</div>
+<script src="engine.js"></script>
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  function esc(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+  function calc(){
+    $('err').textContent = '';
+    const bag = { l: $('l').value, w: $('w').value, h: $('h').value, kg: $('kg').value };
+    try { localStorage.setItem('carryon-bag', JSON.stringify(bag)); } catch(e) {}
+    let s;
+    try { s = CarryOnEngine.scan(bag); } catch(e) { $('err').textContent = e.message; $('out').innerHTML = ''; return; }
+
+    let v;
+    if (s.fitsCount === 0) v = '<b>This bag flies in the cabin on 0 of ' + s.total + ' airlines.</b> It is a checked bag everywhere - or a smaller bag.';
+    else if (s.fitsAll) v = '<b>It passes all ' + s.total + ' airlines.</b> Pack once, fly anyone.';
+    else {
+      v = '<b>It passes ' + s.fitsCount + ' of ' + s.total + ' airlines.</b> It fails: ' + esc(s.failingNames.join(', ')) + '.';
+      if (s.strictestPass) v += ' Tightest squeeze it survives: <b>' + esc(s.strictestPass.name) + '</b> with ' + s.strictestPass.minMargin + ' cm to spare on the tight side.';
+    }
+
+    const rows = s.results.map(function(r){
+      const a = CarryOnEngine.AIRLINES.find(function(x){ return x.id === r.airline; });
+      const limit = a.maxL + 'x' + a.maxW + 'x' + a.maxH + (a.maxKg ? ' / ' + a.maxKg + 'kg' : ' / no limit');
+      let why;
+      if (r.fits) why = 'margin ' + r.minMargin + ' cm';
+      else if (!r.fitsSize && !r.fitsWeight) why = 'too big and ' + r.overKg + ' kg over';
+      else if (!r.fitsSize) why = 'too big (' + Math.min.apply(null, r.margins) + ' cm over)';
+      else why = r.overKg + ' kg over';
+      return '<tr><td>' + esc(r.name) + '<div class="dim">' + limit + '</div></td>'
+        + '<td><span class="chip ' + (r.fits ? 'pass' : 'fail') + '">' + (r.fits ? 'FITS' : 'NO') + '</span></td>'
+        + '<td>' + esc(why) + '</td></tr>';
+    }).join('');
+
+    $('out').innerHTML = '<div class="verdict">' + v + '</div>'
+      + '<div class="card"><table><tr><th>Airline limit (cm / kg)</th><th></th><th>Detail</th></tr>' + rows + '</table></div>';
+  }
+
+  $('go').onclick = calc;
+  try {
+    const b = JSON.parse(localStorage.getItem('carryon-bag') || 'null');
+    if (b) { $('l').value=b.l; $('w').value=b.w; $('h').value=b.h; $('kg').value=b.kg; }
+  } catch(e) {}
+  calc();
+})();
+</script>
+</body>
+</html>
